@@ -1,21 +1,19 @@
+import axios, { AxiosInstance } from 'axios';
 import { Config } from '../config';
 
 export interface AIService {
   generateCoverLetter(resume: string, jobDescription: string): Promise<string>;
 }
 
-export function createAIService(config: Config): AIService {
+export function createAIService(
+  config: Config,
+  client: AxiosInstance = axios
+): AIService {
   return {
     generateCoverLetter: async (resume: string, jobDescription: string): Promise<string> => {
-      const response = await fetch(config.openRouter.endpoint, {
-        method: 'POST',
-        headers: {
-          'Authorization': `Bearer ${config.openRouter.apiKey}`,
-          'Content-Type': 'application/json',
-          'HTTP-Referer': 'https://github.com/applypipe',
-          'X-Title': 'ApplyPipe',
-        },
-        body: JSON.stringify({
+      const response = await client.post(
+        config.openRouter.endpoint,
+        {
           model: config.openRouter.model,
           messages: [
             {
@@ -28,10 +26,20 @@ export function createAIService(config: Config): AIService {
             },
           ],
           temperature: 0.7,
-        }),
-      });
+        },
+        {
+          headers: {
+            'Authorization': `Bearer ${config.openRouter.apiKey}`,
+            'Content-Type': 'application/json',
+            'HTTP-Referer': 'https://github.com/applypipe',
+            'X-Title': 'ApplyPipe',
+          },
+          // Keep error bodies in the thrown message below instead of a generic AxiosError
+          validateStatus: () => true,
+        }
+      );
 
-      const data = (await response.json()) as any;
+      const data = response.data as any;
 
       if (!data.choices || data.choices.length === 0) {
         throw new Error(`OpenRouter API Error: ${JSON.stringify(data)}`);

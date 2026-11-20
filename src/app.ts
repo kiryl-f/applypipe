@@ -6,6 +6,7 @@ import { config } from './config';
 import { setupDatabase } from './db/database';
 import { createJobService } from './services/jobService';
 import { createJobRoutes } from './routes/jobRoutes';
+import { createQueueService } from './services/queueService';
 import { logger } from './utils/logger';
 
 const app = express();
@@ -39,8 +40,10 @@ app.use((req: Request, res: Response, next: NextFunction) => {
 });
 
 const db = setupDatabase(config.dbPath);
+
+const queueService = createQueueService(db);
 const jobService = createJobService(db);
-const jobRoutes = createJobRoutes(jobService, config.secretToken);
+const jobRoutes = createJobRoutes(queueService, jobService, config.secretToken);
 
 app.use('/api', jobRoutes);
 
