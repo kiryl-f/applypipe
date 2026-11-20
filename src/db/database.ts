@@ -1,31 +1,41 @@
 import sqlite3 from 'sqlite3';
-import path from 'path';
+import { logger } from '../utils/logger';
 
-export function setupDatabase(dbFilePath: string): sqlite3.Database {
-  const resolvedPath = path.resolve(dbFilePath);
-
-  const db = new sqlite3.Database(resolvedPath, (err) => {
+export function setupDatabase(dbPath: string): sqlite3.Database {
+  const db = new sqlite3.Database(dbPath, (err) => {
     if (err) {
-      console.log('❌ Error connecting to SQLite database:', err.message);
-      process.exit(1);
+      logger.error('Failed to connect to SQLite database', { error: err.message });
+      throw err;
     }
-    console.log(`✅ Connected to SQLite database at ${resolvedPath}`);
+    logger.info(`✅ Connected to SQLite database at ${dbPath}`);
   });
 
-  db.serialize(() => {
-    db.run(`
-      CREATE TABLE IF NOT EXISTS jobs (
-        id INTEGER PRIMARY KEY AUTOINCREMENT,
-        title TEXT NOT NULL,
-        company TEXT,
-        url TEXT UNIQUE NOT NULL,
-        description TEXT,
-        cover_letter TEXT,
-        status TEXT DEFAULT 'New',
-        created_at DATETIME DEFAULT CURRENT_TIMESTAMP
-      )
-    `);
-  });
+  db.run('PRAGMA journal_mode = WAL;');
+  db.run('PRAGMA foreign_keys = ON;');
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS jobs (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      title TEXT NOT NULL,
+      company TEXT,
+      url TEXT UNIQUE NOT NULL,
+      description TEXT,
+      cover_letter TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
+
+  db.run(`
+    CREATE TABLE IF NOT EXISTS job_queue (
+      id INTEGER PRIMARY KEY AUTOINCREMENT,
+      job_data TEXT NOT NULL, -- JSON stringified job payload
+      status TEXT DEFAULT 'PENDING', -- PENDING, PROCESSING, COMPLETED, FAILED, DEAD_LETTER
+      attempts INTEGER DEFAULT 0,
+      locked_until DATETIME DEFAULT NULL,
+      error_message TEXT,
+      created_at DATETIME DEFAULT CURRENT_TIMESTAMP
+    )
+  `);
 
   return db;
 }
